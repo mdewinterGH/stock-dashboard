@@ -173,7 +173,10 @@ app.get('/api/financials/:symbol', async (req, res) => {
     ]);
 
     const data = r.data?.quoteSummary?.result?.[0];
-    if (!data) return res.json({ quarters: [], peRatioTTM: null, psTTM: null, pbTTM: null, eps: null, overview: {} });
+    if (!data) {
+      console.log(`[YF /api/financials] no result for ${symbol}. Full response:`, JSON.stringify(r.data, null, 2));
+      return res.json({ quarters: [], peRatioTTM: null, psTTM: null, pbTTM: null, eps: null, overview: {} });
+    }
 
     const incomeList  = data.incomeStatementHistoryQuarterly?.incomeStatementHistory || [];
     const cashList    = data.cashflowStatementHistoryQuarterly?.cashflowStatements   || [];
@@ -181,6 +184,31 @@ app.get('/api/financials/:symbol', async (req, res) => {
     const fd          = data.financialData        || {};
     const sd          = data.summaryDetail        || {};
     const ks          = data.defaultKeyStatistics || {};
+
+    // ── incomeStatementHistoryQuarterly ──────────────────────────────────────
+    console.log(`\n[YF incomeStatementHistoryQuarterly] ${symbol} — ${incomeList.length} quarters`);
+    if (incomeList.length > 0) {
+      console.log('[YF income] most recent quarter (raw):', JSON.stringify(incomeList[0], null, 2));
+    } else {
+      console.log('[YF income] array is empty');
+    }
+
+    // ── cashflowStatementHistoryQuarterly ────────────────────────────────────
+    console.log(`\n[YF cashflowStatementHistoryQuarterly] ${symbol} — ${cashList.length} quarters`);
+    if (cashList.length > 0) {
+      console.log('[YF cashflow] most recent quarter (raw):', JSON.stringify(cashList[0], null, 2));
+    } else {
+      console.log('[YF cashflow] array is empty');
+    }
+
+    // ── financialData overview fields ────────────────────────────────────────
+    console.log(`\n[YF financialData] ${symbol} — overview fields:`);
+    console.log({
+      grossMargins:    fd.grossMargins,
+      profitMargins:   fd.profitMargins,
+      returnOnEquity:  fd.returnOnEquity,
+      dividendYield:   sd.dividendYield,
+    });
 
     // Yahoo returns newest-first; reverse so charts render oldest→newest
     const income   = incomeList.slice(0, 8).reverse();
@@ -219,6 +247,11 @@ app.get('/api/financials/:symbol', async (req, res) => {
       },
     });
   } catch (err) {
+    console.error(`[YF /api/financials] ERROR for ${req.params.symbol}:`, err.message);
+    if (err.response) {
+      console.error('[YF /api/financials] HTTP status:', err.response.status);
+      console.error('[YF /api/financials] response body:', JSON.stringify(err.response.data, null, 2));
+    }
     res.json({ quarters: [], peRatioTTM: null, psTTM: null, pbTTM: null, eps: null, overview: {} });
   }
 });
