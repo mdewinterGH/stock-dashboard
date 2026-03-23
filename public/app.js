@@ -111,15 +111,13 @@ function renderMetrics(quoteData, metricsData, finData) {
   const m  = metricsData?.metric || {};
   const q  = quoteData?.quote    || {};
   const p  = quoteData?.profile  || {};
-  const ov = finData?.overview   || {};  // Alpha Vantage OVERVIEW — more accurate for margin/yield/ROE
+  const ov = finData?.overview || {};  // Yahoo Finance financialData/summaryDetail
 
-  // Server pre-parses these to numbers or null (strips AV's "None"/"N/A" strings)
-  const avGrossMargin = (ov.GrossProfitTTM != null && ov.RevenueTTM != null && ov.RevenueTTM !== 0)
-    ? (ov.GrossProfitTTM / ov.RevenueTTM * 100).toFixed(1) + '%'
-    : null;
-  const avDivYield  = ov.DividendYield     != null ? (ov.DividendYield     * 100).toFixed(2) + '%' : null;
-  const avNetMargin = ov.ProfitMargin      != null ? (ov.ProfitMargin      * 100).toFixed(1) + '%' : null;
-  const avROE       = ov.ReturnOnEquityTTM != null ? (ov.ReturnOnEquityTTM * 100).toFixed(1) + '%' : null;
+  // Yahoo Finance returns these as decimal ratios (e.g. 0.34 = 34%)
+  const avGrossMargin = ov.GrossMargin       != null ? (ov.GrossMargin       * 100).toFixed(1) + '%' : null;
+  const avDivYield    = ov.DividendYield     != null ? (ov.DividendYield     * 100).toFixed(2) + '%' : null;
+  const avNetMargin   = ov.ProfitMargin      != null ? (ov.ProfitMargin      * 100).toFixed(1) + '%' : null;
+  const avROE         = ov.ReturnOnEquityTTM != null ? (ov.ReturnOnEquityTTM * 100).toFixed(1) + '%' : null;
 
   const items = [
     { label: 'Market Cap',     value: p.marketCapitalization ? fmtB(p.marketCapitalization * 1e6) : null },
@@ -130,7 +128,7 @@ function renderMetrics(quoteData, metricsData, finData) {
     { label: 'P/S (TTM)',      value: m.psTTM      != null ? m.psTTM.toFixed(2)      : null },
     { label: 'P/B',            value: m.pbQuarterly != null ? m.pbQuarterly.toFixed(2) : null },
     { label: 'EPS (TTM)',      value: m.epsTTM     != null ? fmt(m.epsTTM, 'currency') : null },
-    // AV-sourced: more accurate than Finnhub for these four
+    // Yahoo Finance-sourced (financialData/summaryDetail); fall back to Finnhub if absent
     { label: 'Div Yield',      value: avDivYield  ?? (m.currentDividendYieldTTM != null ? (m.currentDividendYieldTTM * 100).toFixed(2) + '%' : null) },
     { label: 'Gross Margin',   value: avGrossMargin ?? (m.grossMarginTTM != null ? (m.grossMarginTTM * 100).toFixed(1) + '%' : null) },
     { label: 'Net Margin',     value: avNetMargin ?? (m.netProfitMarginTTM != null ? (m.netProfitMarginTTM * 100).toFixed(1) + '%' : null) },

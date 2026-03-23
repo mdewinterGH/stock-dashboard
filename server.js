@@ -7,7 +7,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 const FINNHUB_KEY = process.env.FINNHUB_KEY;
-const ALPHAVANTAGE_KEY = process.env.ALPHAVANTAGE_KEY;
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
@@ -20,14 +19,18 @@ function finnhubGet(path, params = {}) {
   });
 }
 
-function alphaGet(params = {}) {
-  return axios.get('https://www.alphavantage.co/query', {
-    params: { ...params, apikey: ALPHAVANTAGE_KEY },
+const YAHOO_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  'Accept': 'application/json',
+};
+
+function yahooSummary(symbol, modules) {
+  return axios.get(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${symbol}`, {
+    params: { modules: modules.join(',') },
+    headers: YAHOO_HEADERS,
     timeout: 10000,
   });
 }
-
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 
@@ -156,119 +159,66 @@ app.get('/api/history/:symbol', async (req, res) => {
   }
 });
 
-// Alpha Vantage – quarterly income statement + EPS + cash flow + overview
+// Yahoo Finance – quarterly financials + metrics overview (single request)
 app.get('/api/financials/:symbol', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   try {
-    // Sequential with 1.2s gaps to stay within AV free tier (1 req/sec)
-    const incomeRes   = await alphaGet({ function: 'INCOME_STATEMENT', symbol }).then(r => ({ status: 'fulfilled', value: r })).catch(e => ({ status: 'rejected', reason: e }));
-    await sleep(1200);
-    const earningsRes = await alphaGet({ function: 'EARNINGS',         symbol }).then(r => ({ status: 'fulfilled', value: r })).catch(e => ({ status: 'rejected', reason: e }));
-    await sleep(1200);
-    const cashflowRes = await alphaGet({ function: 'CASH_FLOW',        symbol }).then(r => ({ status: 'fulfilled', value: r })).catch(e => ({ status: 'rejected', reason: e }));
-    await sleep(1200);
-    const overviewRes = await alphaGet({ function: 'OVERVIEW',         symbol }).then(r => ({ status: 'fulfilled', value: r })).catch(e => ({ status: 'rejected', reason: e }));
+    const r = await yahooSummary(symbol, [
+      'incomeStatementHistoryQuarterly',
+      'cashflowStatementHistoryQuarterly',
+      'earningsHistory',
+      'financialData',
+      'summaryDetail',
+      'defaultKeyStatistics',
+    ]);
 
-    // ── INCOME_STATEMENT ────────────────────────────────────────────────────
-    console.log(`\n[AV INCOME_STATEMENT] status: ${incomeRes.status}`);
-    if (incomeRes.status === 'fulfilled') {
-      const rawIncome = incomeRes.value.data;
-      console.log('[AV INCOME_STATEMENT] top-level keys:', Object.keys(rawIncome));
-      const qReports = rawIncome?.quarterlyReports || [];
-      console.log(`[AV INCOME_STATEMENT] quarterlyReports count: ${qReports.length}`);
-      if (qReports.length > 0) {
-        console.log('[AV INCOME_STATEMENT] most recent quarter fields:', Object.keys(qReports[0]));
-        console.log('[AV INCOME_STATEMENT] most recent quarter values:', qReports[0]);
-      }
-    } else {
-      console.log('[AV INCOME_STATEMENT] FAILED:', incomeRes.reason?.message);
-    }
+    const data = r.data?.quoteSummary?.result?.[0];
+    if (!data) return res.json({ quarters: [], peRatioTTM: null, psTTM: null, pbTTM: null, eps: null, overview: {} });
 
-    // ── EARNINGS ────────────────────────────────────────────────────────────
-    console.log(`\n[AV EARNINGS] status: ${earningsRes.status}`);
-    if (earningsRes.status === 'fulfilled') {
-      const rawEarnings = earningsRes.value.data;
-      console.log('[AV EARNINGS] top-level keys:', Object.keys(rawEarnings));
-      const qEarnings = rawEarnings?.quarterlyEarnings || [];
-      console.log(`[AV EARNINGS] quarterlyEarnings count: ${qEarnings.length}`);
-      if (qEarnings.length > 0) {
-        console.log('[AV EARNINGS] most recent quarter fields:', Object.keys(qEarnings[0]));
-        console.log('[AV EARNINGS] most recent quarter values:', qEarnings[0]);
-      }
-    } else {
-      console.log('[AV EARNINGS] FAILED:', earningsRes.reason?.message);
-    }
+    const incomeList  = data.incomeStatementHistoryQuarterly?.incomeStatementHistory || [];
+    const cashList    = data.cashflowStatementHistoryQuarterly?.cashflowStatements   || [];
+    const epsList     = data.earningsHistory?.history || [];
+    const fd          = data.financialData        || {};
+    const sd          = data.summaryDetail        || {};
+    const ks          = data.defaultKeyStatistics || {};
 
-    // ── CASH_FLOW ────────────────────────────────────────────────────────────
-    console.log(`\n[AV CASH_FLOW] status: ${cashflowRes.status}`);
-    if (cashflowRes.status === 'fulfilled') {
-      const rawCashflow = cashflowRes.value.data;
-      console.log('[AV CASH_FLOW] top-level keys:', Object.keys(rawCashflow));
-      const qCashflow = rawCashflow?.quarterlyReports || [];
-      console.log(`[AV CASH_FLOW] quarterlyReports count: ${qCashflow.length}`);
-      if (qCashflow.length > 0) {
-        console.log('[AV CASH_FLOW] most recent quarter fields:', Object.keys(qCashflow[0]));
-        console.log('[AV CASH_FLOW] most recent quarter values:', qCashflow[0]);
-      }
-    } else {
-      console.log('[AV CASH_FLOW] FAILED:', cashflowRes.reason?.message);
-    }
-
-    // ── OVERVIEW ─────────────────────────────────────────────────────────────
-    console.log(`\n[AV OVERVIEW] status: ${overviewRes.status}`);
-    if (overviewRes.status === 'fulfilled') {
-      const rawOverview = overviewRes.value.data;
-      console.log('[AV OVERVIEW] all fields and raw values:');
-      console.log(rawOverview);
-      console.log('[AV OVERVIEW] margin/yield fields specifically:');
-      console.log({
-        DividendYield:     rawOverview.DividendYield,
-        ProfitMargin:      rawOverview.ProfitMargin,
-        GrossProfitTTM:    rawOverview.GrossProfitTTM,
-        RevenueTTM:        rawOverview.RevenueTTM,
-        ReturnOnEquityTTM: rawOverview.ReturnOnEquityTTM,
-      });
-    } else {
-      console.log('[AV OVERVIEW] FAILED:', overviewRes.reason?.message);
-    }
-
-    const income   = incomeRes.status   === 'fulfilled' ? (incomeRes.value.data?.quarterlyReports?.slice(0, 8).reverse()   || []) : [];
-    const earnings = earningsRes.status === 'fulfilled' ? (earningsRes.value.data?.quarterlyEarnings?.slice(0, 8).reverse() || []) : [];
-    const cashflow = cashflowRes.status === 'fulfilled' ? (cashflowRes.value.data?.quarterlyReports?.slice(0, 8).reverse()  || []) : [];
-    const overview = overviewRes.status === 'fulfilled' ? (overviewRes.value.data || {}) : {};
+    // Yahoo returns newest-first; reverse so charts render oldest→newest
+    const income   = incomeList.slice(0, 8).reverse();
+    const cashflow = cashList.slice(0, 8).reverse();
 
     const quarters = income.map((q, i) => {
-      const cf   = cashflow[i] || {};
-      const eps  = earnings.find(e => e.fiscalDateEnding === q.fiscalDateEnding) || earnings[i] || {};
-      const ocf  = parseNum(cf.operatingCashflow);
-      const capex = parseNum(cf.capitalExpenditures);
+      const cf      = cashflow[i] || {};
+      const endTs   = q.endDate?.raw;
+      // Match EPS entry by quarter timestamp (within 45-day window), fall back to index
+      const epsEntry = epsList.find(e => Math.abs((e.quarter?.raw || 0) - endTs) < 45 * 86400)
+                    || epsList[income.length - 1 - i]
+                    || {};
+      const ocf   = yNum(cf.totalCashFromOperatingActivities);
+      const capex = yNum(cf.capitalExpenditures); // negative in Yahoo Finance
       return {
-        quarter:          q.fiscalDateEnding,
-        revenue:          parseNum(q.totalRevenue),
-        netIncome:        parseNum(q.netIncome),
-        eps:              parseFloat(eps.reportedEPS) || null,
+        quarter:           q.endDate?.fmt || null,
+        revenue:           yNum(q.totalRevenue),
+        netIncome:         yNum(q.netIncome),
+        eps:               yNum(epsEntry.epsActual),
         operatingCashFlow: ocf,
-        freeCashFlow:     ocf !== null && capex !== null ? ocf - Math.abs(capex) : null,
+        freeCashFlow:      ocf !== null && capex !== null ? ocf + capex : null,
       };
     });
 
     res.json({
       quarters,
-      peRatioTTM: parseFloat(overview.PERatio)               || null,
-      psTTM:      parseFloat(overview.PriceToSalesRatioTTM)  || null,
-      pbTTM:      parseFloat(overview.PriceToBookRatio)       || null,
-      eps:        parseFloat(overview.EPS)                    || null,
-      // Fields used by the metrics panel — avNum strips AV's "None"/"N/A" strings
+      peRatioTTM: yNum(sd.trailingPE)  ?? yNum(ks.trailingPE),
+      psTTM:      yNum(sd.priceToSalesTrailing12Months),
+      pbTTM:      yNum(ks.priceToBook),
+      eps:        yNum(ks.trailingEps),
       overview: {
-        DividendYield:     avNum(overview.DividendYield),
-        ProfitMargin:      avNum(overview.ProfitMargin),
-        GrossProfitTTM:    avNum(overview.GrossProfitTTM),
-        RevenueTTM:        avNum(overview.RevenueTTM),
-        ReturnOnEquityTTM: avNum(overview.ReturnOnEquityTTM),
+        DividendYield:     yNum(sd.dividendYield),
+        GrossMargin:       yNum(fd.grossMargins),
+        ProfitMargin:      yNum(fd.profitMargins),
+        ReturnOnEquityTTM: yNum(fd.returnOnEquity),
       },
     });
   } catch (err) {
-    console.error(`[AV /api/financials] unexpected error for ${req.params.symbol}:`, err.message);
     res.json({ quarters: [], peRatioTTM: null, psTTM: null, pbTTM: null, eps: null, overview: {} });
   }
 });
@@ -280,11 +230,12 @@ function parseNum(v) {
   return isNaN(n) ? null : n;
 }
 
-// Alpha Vantage returns "None" / "N/A" for missing fields — normalize to null
-function avNum(v) {
-  if (v == null || v === 'None' || v === 'N/A' || v === '-') return null;
-  const n = parseFloat(v);
-  return isNaN(n) ? null : n;
+// Unwrap Yahoo Finance { raw, fmt } objects or pass plain numbers through
+function yNum(v) {
+  if (v == null) return null;
+  if (typeof v === 'number') return isNaN(v) ? null : v;
+  if (typeof v === 'object' && v.raw != null) return isNaN(v.raw) ? null : v.raw;
+  return null;
 }
 
 const POS_WORDS = ['beat', 'surge', 'soar', 'gain', 'rise', 'jump', 'strong', 'profit', 'growth',
