@@ -24,10 +24,39 @@ const YAHOO_HEADERS = {
   'Accept': 'application/json',
 };
 
-function yahooSummary(symbol, modules) {
+// ── Yahoo Finance crumb cache ────────────────────────────────────────────────
+// quoteSummary requires a valid crumb + matching session cookie on Render/prod.
+// We fetch once, cache, and re-fetch only when a 401 is received.
+let yahooCrumb = { crumb: null, cookies: null };
+
+async function ensureCrumb(force = false) {
+  if (!force && yahooCrumb.crumb) return yahooCrumb;
+
+  // Step 1 – load Yahoo Finance to obtain session cookies
+  const pageRes = await axios.get('https://finance.yahoo.com', {
+    headers: { 'User-Agent': YAHOO_HEADERS['User-Agent'] },
+    timeout: 10000,
+    maxRedirects: 5,
+  });
+  const cookies = (pageRes.headers['set-cookie'] || [])
+    .map(c => c.split(';')[0])
+    .join('; ');
+
+  // Step 2 – exchange those cookies for a crumb token
+  const crumbRes = await axios.get('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+    headers: { ...YAHOO_HEADERS, Cookie: cookies },
+    timeout: 8000,
+  });
+
+  yahooCrumb = { crumb: crumbRes.data, cookies };
+  console.log('[YF crumb] refreshed crumb:', yahooCrumb.crumb);
+  return yahooCrumb;
+}
+
+function yahooSummary(symbol, modules, crumb, cookies) {
   return axios.get(`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${symbol}`, {
-    params: { modules: modules.join(',') },
-    headers: YAHOO_HEADERS,
+    params:  { modules: modules.join(','), crumb },
+    headers: { ...YAHOO_HEADERS, Cookie: cookies },
     timeout: 10000,
   });
 }
@@ -162,15 +191,26 @@ app.get('/api/history/:symbol', async (req, res) => {
 // Yahoo Finance – quarterly financials + metrics overview (single request)
 app.get('/api/financials/:symbol', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
+  const MODULES = [
+    'incomeStatementHistoryQuarterly',
+    'cashflowStatementHistoryQuarterly',
+    'earningsHistory',
+    'financialData',
+    'summaryDetail',
+    'defaultKeyStatistics',
+  ];
   try {
-    const r = await yahooSummary(symbol, [
-      'incomeStatementHistoryQuarterly',
-      'cashflowStatementHistoryQuarterly',
-      'earningsHistory',
-      'financialData',
-      'summaryDetail',
-      'defaultKeyStatistics',
-    ]);
+    let { crumb, cookies } = await ensureCrumb();
+    let r;
+    try {
+      r = await yahooSummary(symbol, MODULES, crumb, cookies);
+    } catch (firstErr) {
+      if (firstErr.response?.status !== 401) throw firstErr;
+      // Crumb expired — refresh once and retry
+      console.log('[YF crumb] got 401, refreshing crumb and retrying…');
+      ({ crumb, cookies } = await ensureCrumb(true));
+      r = await yahooSummary(symbol, MODULES, crumb, cookies);
+    }
 
     const data = r.data?.quoteSummary?.result?.[0];
     if (!data) {
