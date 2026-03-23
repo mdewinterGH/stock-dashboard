@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Research Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ── Search Bar ─────────────────────────────────────────────────────── -->
+  <div class="search-bar-wrap">
+    <div class="search-inner">
+      <span class="search-icon">⌕</span>
+      <input id="tickerInput" type="text" placeholder="Enter ticker symbol (e.g. AAPL, NVDA, TSLA)" autocomplete="off" spellcheck="false" />
+      <button id="searchBtn">Search</button>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+
+    <!-- ── Header ───────────────────────────────────────────────────────── -->
+    <header class="stock-header card">
+      <div class="header-left">
+        <div class="ticker-badge" id="headerTicker">—</div>
+        <div>
+          <div class="company-name" id="headerName">Loading…</div>
+          <div class="company-meta" id="headerMeta"></div>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="price-big" id="headerPrice">—</div>
+        <div class="change-badge" id="headerChange">—</div>
+      </div>
+    </header>
+
+    <!-- ── Row 1: Chart + Key Metrics ───────────────────────────────────── -->
+    <div class="row-2col">
+      <div class="card chart-card">
+        <div class="card-title-row">
+          <span class="card-title">Price History</span>
+          <div class="toggle-group" id="rangeToggle">
+            <button class="toggle-btn active" data-range="3mo">3M</button>
+            <button class="toggle-btn" data-range="6mo">6M</button>
+            <button class="toggle-btn" data-range="1y">1Y</button>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="priceChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card metrics-card">
+        <div class="card-title">Key Metrics</div>
+        <div class="metrics-grid" id="metricsGrid">
+          <div class="skeleton-block"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Row 2: News + Analyst ────────────────────────────────────────── -->
+    <div class="row-2col">
+      <div class="card news-card">
+        <div class="card-title">Latest News</div>
+        <div id="newsFeed" class="news-list">
+          <div class="skeleton-block"></div>
+        </div>
+      </div>
+
+      <div class="card analyst-card">
+        <div class="card-title">Analyst Ratings</div>
+        <div id="analystSection">
+          <div class="skeleton-block"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Row 3: Competitors ────────────────────────────────────────────── -->
+    <div class="card peers-card">
+      <div class="card-title">Competitor Comparison</div>
+      <div id="peersTable" class="peers-wrap">
+        <div class="skeleton-block"></div>
+      </div>
+    </div>
+
+    <!-- ── Row 4: Quarterly Charts ──────────────────────────────────────── -->
+    <div class="card quarterly-card">
+      <div class="card-title">Quarterly Financials (Trailing 8 Quarters)</div>
+      <div class="quarterly-grid" id="quarterlyGrid">
+        <!-- injected by JS -->
+      </div>
+    </div>
+
+  </div><!-- /app -->
+
+  <!-- ── Loading overlay ───────────────────────────────────────────────── -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <div class="loading-text">Fetching data…</div>
+  </div>
+
+  <!-- ── Error toast ───────────────────────────────────────────────────── -->
+  <div id="errorToast" class="error-toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
