@@ -192,13 +192,13 @@ app.get('/api/financials/:symbol', async (req, res) => {
       psTTM:      parseFloat(overview.PriceToSalesRatioTTM)  || null,
       pbTTM:      parseFloat(overview.PriceToBookRatio)       || null,
       eps:        parseFloat(overview.EPS)                    || null,
-      // Fields used by the metrics panel for accurate values
+      // Fields used by the metrics panel — avNum strips AV's "None"/"N/A" strings
       overview: {
-        DividendYield:       overview.DividendYield       || null,
-        ProfitMargin:        overview.ProfitMargin        || null,
-        GrossProfitTTM:      overview.GrossProfitTTM      || null,
-        RevenueTTM:          overview.RevenueTTM          || null,
-        ReturnOnEquityTTM:   overview.ReturnOnEquityTTM   || null,
+        DividendYield:     avNum(overview.DividendYield),
+        ProfitMargin:      avNum(overview.ProfitMargin),
+        GrossProfitTTM:    avNum(overview.GrossProfitTTM),
+        RevenueTTM:        avNum(overview.RevenueTTM),
+        ReturnOnEquityTTM: avNum(overview.ReturnOnEquityTTM),
       },
     });
   } catch (err) {
@@ -209,6 +209,13 @@ app.get('/api/financials/:symbol', async (req, res) => {
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 function parseNum(v) {
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
+// Alpha Vantage returns "None" / "N/A" for missing fields — normalize to null
+function avNum(v) {
+  if (v == null || v === 'None' || v === 'N/A' || v === '-') return null;
   const n = parseFloat(v);
   return isNaN(n) ? null : n;
 }

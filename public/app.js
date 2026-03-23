@@ -113,17 +113,13 @@ function renderMetrics(quoteData, metricsData, finData) {
   const p  = quoteData?.profile  || {};
   const ov = finData?.overview   || {};  // Alpha Vantage OVERVIEW — more accurate for margin/yield/ROE
 
-  // Compute gross margin from AV if both fields present, else fall back to Finnhub
-  const avGrossMargin = (() => {
-    const gp  = parseFloat(ov.GrossProfitTTM);
-    const rev = parseFloat(ov.RevenueTTM);
-    if (!isNaN(gp) && !isNaN(rev) && rev !== 0) return (gp / rev * 100).toFixed(1) + '%';
-    return null;
-  })();
-
-  const avDivYield  = ov.DividendYield     != null ? (parseFloat(ov.DividendYield)     * 100).toFixed(2) + '%' : null;
-  const avNetMargin = ov.ProfitMargin      != null ? (parseFloat(ov.ProfitMargin)      * 100).toFixed(1) + '%' : null;
-  const avROE       = ov.ReturnOnEquityTTM != null ? (parseFloat(ov.ReturnOnEquityTTM) * 100).toFixed(1) + '%' : null;
+  // Server pre-parses these to numbers or null (strips AV's "None"/"N/A" strings)
+  const avGrossMargin = (ov.GrossProfitTTM != null && ov.RevenueTTM != null && ov.RevenueTTM !== 0)
+    ? (ov.GrossProfitTTM / ov.RevenueTTM * 100).toFixed(1) + '%'
+    : null;
+  const avDivYield  = ov.DividendYield     != null ? (ov.DividendYield     * 100).toFixed(2) + '%' : null;
+  const avNetMargin = ov.ProfitMargin      != null ? (ov.ProfitMargin      * 100).toFixed(1) + '%' : null;
+  const avROE       = ov.ReturnOnEquityTTM != null ? (ov.ReturnOnEquityTTM * 100).toFixed(1) + '%' : null;
 
   const items = [
     { label: 'Market Cap',     value: p.marketCapitalization ? fmtB(p.marketCapitalization * 1e6) : null },
