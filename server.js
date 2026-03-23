@@ -166,6 +166,69 @@ app.get('/api/financials/:symbol', async (req, res) => {
       alphaGet({ function: 'OVERVIEW',         symbol }),
     ]);
 
+    // ── INCOME_STATEMENT ────────────────────────────────────────────────────
+    console.log(`\n[AV INCOME_STATEMENT] status: ${incomeRes.status}`);
+    if (incomeRes.status === 'fulfilled') {
+      const rawIncome = incomeRes.value.data;
+      console.log('[AV INCOME_STATEMENT] top-level keys:', Object.keys(rawIncome));
+      const qReports = rawIncome?.quarterlyReports || [];
+      console.log(`[AV INCOME_STATEMENT] quarterlyReports count: ${qReports.length}`);
+      if (qReports.length > 0) {
+        console.log('[AV INCOME_STATEMENT] most recent quarter fields:', Object.keys(qReports[0]));
+        console.log('[AV INCOME_STATEMENT] most recent quarter values:', qReports[0]);
+      }
+    } else {
+      console.log('[AV INCOME_STATEMENT] FAILED:', incomeRes.reason?.message);
+    }
+
+    // ── EARNINGS ────────────────────────────────────────────────────────────
+    console.log(`\n[AV EARNINGS] status: ${earningsRes.status}`);
+    if (earningsRes.status === 'fulfilled') {
+      const rawEarnings = earningsRes.value.data;
+      console.log('[AV EARNINGS] top-level keys:', Object.keys(rawEarnings));
+      const qEarnings = rawEarnings?.quarterlyEarnings || [];
+      console.log(`[AV EARNINGS] quarterlyEarnings count: ${qEarnings.length}`);
+      if (qEarnings.length > 0) {
+        console.log('[AV EARNINGS] most recent quarter fields:', Object.keys(qEarnings[0]));
+        console.log('[AV EARNINGS] most recent quarter values:', qEarnings[0]);
+      }
+    } else {
+      console.log('[AV EARNINGS] FAILED:', earningsRes.reason?.message);
+    }
+
+    // ── CASH_FLOW ────────────────────────────────────────────────────────────
+    console.log(`\n[AV CASH_FLOW] status: ${cashflowRes.status}`);
+    if (cashflowRes.status === 'fulfilled') {
+      const rawCashflow = cashflowRes.value.data;
+      console.log('[AV CASH_FLOW] top-level keys:', Object.keys(rawCashflow));
+      const qCashflow = rawCashflow?.quarterlyReports || [];
+      console.log(`[AV CASH_FLOW] quarterlyReports count: ${qCashflow.length}`);
+      if (qCashflow.length > 0) {
+        console.log('[AV CASH_FLOW] most recent quarter fields:', Object.keys(qCashflow[0]));
+        console.log('[AV CASH_FLOW] most recent quarter values:', qCashflow[0]);
+      }
+    } else {
+      console.log('[AV CASH_FLOW] FAILED:', cashflowRes.reason?.message);
+    }
+
+    // ── OVERVIEW ─────────────────────────────────────────────────────────────
+    console.log(`\n[AV OVERVIEW] status: ${overviewRes.status}`);
+    if (overviewRes.status === 'fulfilled') {
+      const rawOverview = overviewRes.value.data;
+      console.log('[AV OVERVIEW] all fields and raw values:');
+      console.log(rawOverview);
+      console.log('[AV OVERVIEW] margin/yield fields specifically:');
+      console.log({
+        DividendYield:     rawOverview.DividendYield,
+        ProfitMargin:      rawOverview.ProfitMargin,
+        GrossProfitTTM:    rawOverview.GrossProfitTTM,
+        RevenueTTM:        rawOverview.RevenueTTM,
+        ReturnOnEquityTTM: rawOverview.ReturnOnEquityTTM,
+      });
+    } else {
+      console.log('[AV OVERVIEW] FAILED:', overviewRes.reason?.message);
+    }
+
     const income   = incomeRes.status   === 'fulfilled' ? (incomeRes.value.data?.quarterlyReports?.slice(0, 8).reverse()   || []) : [];
     const earnings = earningsRes.status === 'fulfilled' ? (earningsRes.value.data?.quarterlyEarnings?.slice(0, 8).reverse() || []) : [];
     const cashflow = cashflowRes.status === 'fulfilled' ? (cashflowRes.value.data?.quarterlyReports?.slice(0, 8).reverse()  || []) : [];
@@ -202,6 +265,7 @@ app.get('/api/financials/:symbol', async (req, res) => {
       },
     });
   } catch (err) {
+    console.error(`[AV /api/financials] unexpected error for ${req.params.symbol}:`, err.message);
     res.json({ quarters: [], peRatioTTM: null, psTTM: null, pbTTM: null, eps: null, overview: {} });
   }
 });
