@@ -32,18 +32,21 @@ let yahooCrumb = { crumb: null, cookies: null };
 async function ensureCrumb(force = false) {
   if (!force && yahooCrumb.crumb) return yahooCrumb;
 
-  // Step 1 – load Yahoo Finance to obtain session cookies
-  const pageRes = await axios.get('https://finance.yahoo.com', {
+  // Step 1 – hit fc.yahoo.com (Yahoo's lightweight consent endpoint).
+  // It sets the A1 session cookie with far smaller response headers than
+  // finance.yahoo.com, avoiding Node's default header-size limit.
+  const fcRes = await axios.get('https://fc.yahoo.com', {
     headers: { 'User-Agent': YAHOO_HEADERS['User-Agent'] },
     timeout: 10000,
     maxRedirects: 5,
+    validateStatus: () => true, // accept any status — we only need the cookie
   });
-  const cookies = (pageRes.headers['set-cookie'] || [])
+  const cookies = (fcRes.headers['set-cookie'] || [])
     .map(c => c.split(';')[0])
     .join('; ');
 
   // Step 2 – exchange those cookies for a crumb token
-  const crumbRes = await axios.get('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+  const crumbRes = await axios.get('https://query2.finance.yahoo.com/v1/test/getcrumb', {
     headers: { ...YAHOO_HEADERS, Cookie: cookies },
     timeout: 8000,
   });
