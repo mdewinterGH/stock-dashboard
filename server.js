@@ -27,6 +27,8 @@ function alphaGet(params = {}) {
   });
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 // Company profile + quote
@@ -158,13 +160,14 @@ app.get('/api/history/:symbol', async (req, res) => {
 app.get('/api/financials/:symbol', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   try {
-    // Use allSettled so a single AV rate-limit or error doesn't kill the whole response
-    const [incomeRes, earningsRes, cashflowRes, overviewRes] = await Promise.allSettled([
-      alphaGet({ function: 'INCOME_STATEMENT', symbol }),
-      alphaGet({ function: 'EARNINGS',         symbol }),
-      alphaGet({ function: 'CASH_FLOW',        symbol }),
-      alphaGet({ function: 'OVERVIEW',         symbol }),
-    ]);
+    // Sequential with 1.2s gaps to stay within AV free tier (1 req/sec)
+    const incomeRes   = await alphaGet({ function: 'INCOME_STATEMENT', symbol }).then(r => ({ status: 'fulfilled', value: r })).catch(e => ({ status: 'rejected', reason: e }));
+    await sleep(1200);
+    const earningsRes = await alphaGet({ function: 'EARNINGS',         symbol }).then(r => ({ status: 'fulfilled', value: r })).catch(e => ({ status: 'rejected', reason: e }));
+    await sleep(1200);
+    const cashflowRes = await alphaGet({ function: 'CASH_FLOW',        symbol }).then(r => ({ status: 'fulfilled', value: r })).catch(e => ({ status: 'rejected', reason: e }));
+    await sleep(1200);
+    const overviewRes = await alphaGet({ function: 'OVERVIEW',         symbol }).then(r => ({ status: 'fulfilled', value: r })).catch(e => ({ status: 'rejected', reason: e }));
 
     // ── INCOME_STATEMENT ────────────────────────────────────────────────────
     console.log(`\n[AV INCOME_STATEMENT] status: ${incomeRes.status}`);
